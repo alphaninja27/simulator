@@ -1,0 +1,15 @@
+html, body, #root {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+  }
+  
+  body {
+    font-family: sans-serif;
+  } 
+  
+  .leaflet-container {
+    height: 100vh;
+    width: 100%;
+  }
+
