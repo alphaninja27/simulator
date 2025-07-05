@@ -1,28 +1,29 @@
+// src/components/MapView.tsx
 import { useEffect, useState } from 'react';
-import { MapContainer, TileLayer, Polyline, Marker, Popup, useMap } from 'react-leaflet';
+import {
+  MapContainer,
+  TileLayer,
+  Polyline,
+  Marker,
+  Popup,
+  Polygon,
+} from 'react-leaflet';
 import type { LatLngTuple } from 'leaflet';
 import { stations } from '../data/stations';
 import { rawEdges } from '../data/edges';
-import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-
-const vehicleIcon = new L.Icon({
-  iconUrl: 'https://cdn-icons-png.flaticon.com/512/61/61168.png',
-  iconSize: [32, 32],
-  iconAnchor: [16, 16],
-});
 
 type GuidewayEdge = {
   from: string;
   to: string;
   path: LatLngTuple[];
+  type?: string;
 };
 
 const stationMap = Object.fromEntries(stations.map(s => [s.id, s.position]));
 
 function fetchRoute(from: LatLngTuple, to: LatLngTuple): Promise<LatLngTuple[]> {
   const url = `https://router.project-osrm.org/route/v1/driving/${from[1]},${from[0]};${to[1]},${to[0]}?overview=full&geometries=geojson`;
-
   return fetch(url)
     .then(res => res.json())
     .then(data => {
@@ -33,42 +34,81 @@ function fetchRoute(from: LatLngTuple, to: LatLngTuple): Promise<LatLngTuple[]> 
     });
 }
 
-function VehicleAnimator({ path }: { path: LatLngTuple[] }) {
-  const [index, setIndex] = useState(0);
-  const map = useMap();
+function VehiclePentagon({
+  path,
+  offset,
+  paused,
+  color,
+}: {
+  path: LatLngTuple[];
+  offset: number;
+  paused: boolean;
+  color: string;
+}) {
+  const [index, setIndex] = useState(offset);
 
   useEffect(() => {
+    if (paused) return;
     const interval = setInterval(() => {
-      setIndex(i => (i < path.length - 1 ? i + 1 : 0)); // loop
-      map.panTo(path[index], { animate: true });
-    }, 120); // adjust speed
-
+      setIndex(i => (i + 1 < path.length ? i + 1 : 0));
+    }, 120); // Speed for ~45 kmph
     return () => clearInterval(interval);
-  }, [path, index, map]);
+  }, [paused, path]);
 
-  return <Marker position={path[index]} icon={vehicleIcon} />;
+  const getHeading = (from: LatLngTuple, to: LatLngTuple): number => {
+    const dx = to[1] - from[1];
+    const dy = to[0] - from[0];
+    return Math.atan2(dy, dx);
+  };
+
+  const getPentagon = (center: LatLngTuple, headingRad: number): LatLngTuple[] => {
+    const angle = Math.PI * 2 / 5;
+    const points: LatLngTuple[] = [];
+    for (let i = 0; i < 5; i++) {
+      const theta = headingRad + angle * i;
+      const dx = Math.cos(theta) * 0.000022;
+      const dy = Math.sin(theta) * 0.000022;
+      points.push([center[0] + dy, center[1] + dx]);
+    }
+    return points;
+  };
+
+  const center = path[index % path.length];
+  const next = path[(index + 1) % path.length];
+  const heading = getHeading(center, next);
+  const polygon = getPentagon(center, heading);
+
+  return <Polygon positions={polygon} pathOptions={{ color, fillColor: color }} />;
 }
 
 export default function MapView() {
   const [edges, setEdges] = useState<GuidewayEdge[]>([]);
+  const [stationsOnly, setStationsOnly] = useState<GuidewayEdge[]>([]);
   const [route, setRoute] = useState<LatLngTuple[]>([]);
+  const [paused, setPaused] = useState(false);
 
   useEffect(() => {
     const fetchAllRoutes = async () => {
       const results: GuidewayEdge[] = [];
+      const stationLines: GuidewayEdge[] = [];
 
-      for (const { from, to } of rawEdges) {
+      for (const { from, to, type } of rawEdges) {
         const start = stationMap[from];
         const end = stationMap[to];
+        if (type === 'station') {
+          stationLines.push({ from, to, path: [start, end], type });
+        }
+
         try {
           const path = await fetchRoute(start, end);
-          results.push({ from, to, path });
+          results.push({ from, to, path, type });
         } catch {
           console.warn(`No route from ${from} to ${to}`);
         }
       }
 
       setEdges(results);
+      setStationsOnly(stationLines);
       setRoute(results.flatMap(e => e.path));
     };
 
@@ -76,14 +116,24 @@ export default function MapView() {
   }, []);
 
   return (
-    <MapContainer center={[28.6139, 77.2090]} zoom={13} style={{ height: '100vh', width: '100%' }}>
+    <MapContainer center={[28.6139, 77.209]} zoom={13} style={{ height: '100vh', width: '100%' }}>
       <TileLayer
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         attribution="&copy; OpenStreetMap contributors"
       />
 
       {edges.map((edge, i) => (
-        <Polyline key={i} positions={edge.path} color="black" weight={5} />
+        <Polyline key={`edge-${i}`} positions={edge.path} color="black" weight={5} />
+      ))}
+
+      {stationsOnly.map((station, i) => (
+        <Polyline
+          key={`station-${i}`}
+          positions={station.path}
+          color="blue"
+          weight={10}
+          dashArray="6 6"
+        />
       ))}
 
       {stations.map(s => (
@@ -92,7 +142,28 @@ export default function MapView() {
         </Marker>
       ))}
 
-      {route.length > 0 && <VehicleAnimator path={route} />}
+      {route.length > 0 && (
+        <>
+          <VehiclePentagon path={route} offset={0} paused={paused} color="red" />
+          <VehiclePentagon path={route} offset={20} paused={paused} color="orange" />
+          <VehiclePentagon path={route} offset={40} paused={paused} color="green" />
+        </>
+      )}
+
+      <div
+        style={{
+          position: 'absolute',
+          top: 10,
+          left: 10,
+          zIndex: 1000,
+          background: 'white',
+          padding: '10px',
+          borderRadius: '5px',
+        }}
+      >
+        <button onClick={() => setPaused(true)}>Pause</button>
+        <button onClick={() => setPaused(false)}>Resume</button>
+      </div>
     </MapContainer>
   );
 }

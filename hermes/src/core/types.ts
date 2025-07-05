@@ -1,20 +1,22 @@
+// src/core/types.ts
 import type { LatLngTuple } from 'leaflet';
 
 export type Station = {
   id: string;
   name: string;
   position: LatLngTuple;
+  length: number;     // meters
+  blocks: number;     // typically 72m → 12 blocks
 };
 
-export type GuidewayEdge = {
-  from: string;
-  to: string;
-  path: LatLngTuple[];
-  cost?: number;
-};
+export type SegmentType = 'straight' | 'curve30' | 'curve20' | 'station';
 
-export type HermesGraph = {
-  stations: Map<string, Station>;
-  neighbors: Map<string, GuidewayEdge[]>;
-  edges: GuidewayEdge[];
+export type Segment = {
+  id: string;
+  type: SegmentType;
+  from: Station;
+  to: Station;
+  length: number;
+  blocks: number;
+  geometry: LatLngTuple[];
 };
