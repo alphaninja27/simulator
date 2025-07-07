@@ -39,21 +39,26 @@ function VehiclePentagon({
   offset,
   paused,
   color,
+  speed=45,
 }: {
   path: LatLngTuple[];
   offset: number;
   paused: boolean;
   color: string;
+  speed: number;
 }) {
   const [index, setIndex] = useState(offset);
 
   useEffect(() => {
     if (paused) return;
+    const baseSpeed = 45;
+    const baseInterval = 120;
+    const intervalMs = baseInterval * (baseSpeed / speed);
     const interval = setInterval(() => {
       setIndex(i => (i + 1 < path.length ? i + 1 : 0));
-    }, 120); // Speed for ~45 kmph
+    }, intervalMs);
     return () => clearInterval(interval);
-  }, [paused, path]);
+  }, [paused, path, speed]);
 
   const getHeading = (from: LatLngTuple, to: LatLngTuple): number => {
     const dx = to[1] - from[1];
@@ -86,6 +91,8 @@ export default function MapView() {
   const [stationsOnly, setStationsOnly] = useState<GuidewayEdge[]>([]);
   const [route, setRoute] = useState<LatLngTuple[]>([]);
   const [paused, setPaused] = useState(false);
+  const [speed, setSpeed] = useState(45); // km/h, default
+
 
   useEffect(() => {
     const fetchAllRoutes = async () => {
@@ -116,6 +123,7 @@ export default function MapView() {
   }, []);
 
   return (
+    <div style={{ position: 'relative', width: '100%', height: '100vh' }}>
     <MapContainer center={[28.6139, 77.209]} zoom={13} style={{ height: '100vh', width: '100%' }}>
       <TileLayer
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -143,11 +151,11 @@ export default function MapView() {
       ))}
 
       {route.length > 0 && (
-        <>
-          <VehiclePentagon path={route} offset={0} paused={paused} color="red" />
-          <VehiclePentagon path={route} offset={20} paused={paused} color="orange" />
-          <VehiclePentagon path={route} offset={40} paused={paused} color="green" />
-        </>
+         <>
+         <VehiclePentagon path={route} offset={0} paused={paused} color="red" speed={speed} />
+         <VehiclePentagon path={route} offset={20} paused={paused} color="orange" speed={speed} />
+         <VehiclePentagon path={route} offset={40} paused={paused} color="green" speed={speed} />
+       </>
       )}
 
       <div
@@ -163,7 +171,32 @@ export default function MapView() {
       >
         <button onClick={() => setPaused(true)}>Pause</button>
         <button onClick={() => setPaused(false)}>Resume</button>
+        <div>
+          <button onClick={() => setSpeed(s => Math.max(5, s - 5))}>-</button>
+          <span>Speed: {speed} km/h</span>
+          <button onClick={() => setSpeed(s => Math.min(120, s + 5))}>+</button>
+        </div>
       </div>
     </MapContainer>
+    <div
+      style={{
+        position: 'absolute',
+        top: 10,
+        left: 10,
+        zIndex: 1000,
+        background: 'white',
+        padding: '10px',
+        borderRadius: '5px',
+      }}
+    >
+      <button onClick={() => setPaused(true)}>Pause</button>
+      <button onClick={() => setPaused(false)}>Resume</button>
+      <div>
+        <button onClick={() => setSpeed(s => Math.max(5, s - 5))}>-</button>
+        <span style={{ margin: '0 8px', color: 'black' }}>Speed: {speed} km/h</span>
+        <button onClick={() => setSpeed(s => Math.min(120, s + 5))}>+</button>
+      </div>
+    </div>
+  </div>
   );
 }
