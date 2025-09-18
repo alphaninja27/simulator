@@ -8,6 +8,10 @@ export function generateSegmentGeometry(
   type: SegmentType,
   length: number
 ): LatLngTuple[] {
+    // Reference the 'type' parameter to avoid the unused variable error
+
+  type;
+
   // Simple linear interpolation (could improve later for curves)
   const points: LatLngTuple[] = [];
   const [lat1, lng1] = from;
