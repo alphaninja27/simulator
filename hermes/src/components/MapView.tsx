@@ -71,7 +71,7 @@ function VehiclePentagon({
 
   const distanceTraveledRef = useRef(0);
   const lastTimestampRef = useRef(performance.now());
-  const animationFrameRef = useRef<number>();
+  const animationFrameRef = useRef<number>(0);
 
   // Pre-calculate cumulative distances for each point in the path.
   const { cumulativeDistances, totalPathDistance } = useMemo(() => {
